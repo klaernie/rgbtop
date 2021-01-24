@@ -4,6 +4,10 @@ use warnings;
 use List::Util qw( reduce );
 use Data::Dumper;
 use Time::HiRes qw( sleep );
+use JSON;
+
+use lib ".";
+use Net::MQTT::Simple;
 
 sub debug (&){
 	return unless -t 1;
@@ -126,11 +130,40 @@ sub colormap_cores (\%){
 		keys %coredata;
 }
 
-my $clearscreen = qx{ clear };
+open( my $fh, "-|", "lscpu -p" ) or die "failed to run lscpu -p: $!";
+my @lscpu_header;
+my %socket_of;
+my %led_of;
+my %led_counter;
+while( $_ = readline $fh ){
+	if( m/^# / && m/Socket/ && m/CPU/ ){
+		if( m/^# (.*)$/ ){
+			@lscpu_header = split /,/, $1;
+		}
+	}
+	next if m/^#/;
+	next unless @lscpu_header;
 
+	my %details;
+	@details{ @lscpu_header } = split /,/, $_;
+
+	$socket_of{ $details{CPU} } = $details{Socket}+1; # +1: in mqtt it's cpu1 and cpu2, not cpu0 and cpu1
+	$led_of{ $details{CPU} } = $led_counter{ $details{Socket} }++;
+}
+close $fh;
+
+debug {
+	print "Core->CPU:\n";
+	print "$_ => socket $socket_of{$_}, led $led_of{$_}\n" foreach nsort keys %socket_of;
+	sleep 5;
+};
+	
+
+my $clearscreen = qx{ clear };
+my $mqtt = Net::MQTT::Simple->new("mqtt.ak-online.be");
 my %state_old = read_cpu_values();
 while(1){
-	sleep .5;
+	sleep .2;
 	debug { print $clearscreen };
 
 	my %state_new = read_cpu_values();
@@ -150,6 +183,26 @@ while(1){
 	};
 
 
+	foreach my $cpu (nsort keys %colors){
+		my $socket = $socket_of{$cpu};
+		my $led = $led_of{$cpu};
+
+		my $topic = "esphome/rgbcontroller_prototype/light/cpu$socket/addrset";
+
+		debug {
+			print "setting socket $socket led $led to ".(join ",", @{ $colors{$cpu} })."\n";
+		};
+
+		$mqtt->publish(
+			$topic => encode_json({
+				from => $led,
+				to => $led,
+				r => $colors{$cpu}[0],
+				g => $colors{$cpu}[1],
+				b => $colors{$cpu}[2],
+			})
+		);
+	}
 
 
 	%state_old = %state_new;
