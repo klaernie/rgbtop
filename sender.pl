@@ -1,13 +1,12 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use List::Util qw( reduce );
 use Data::Dumper;
+use IO::Socket::INET;
+use List::Util qw( reduce );
 use Time::HiRes qw( sleep );
 use JSON;
 
-use lib ".";
-use Net::MQTT::Simple;
 
 sub debug (&){
 	return unless -t 1;
@@ -116,7 +115,7 @@ sub compute_current (\%\%){
 }
 
 my %state2color = (
-	idle   => undef,
+	idle   => [255,0,255],
 	nice   => [0,0,255],
 	system => [255,0,0],
 	user   => [0,255,0],
@@ -133,7 +132,7 @@ sub colormap_cores (\%){
 open( my $fh, "-|", "lscpu -p" ) or die "failed to run lscpu -p: $!";
 my @lscpu_header;
 my %socket_of;
-my %led_of;
+my %led_of_socket_of;
 my %led_counter;
 while( $_ = readline $fh ){
 	if( m/^# / && m/Socket/ && m/CPU/ ){
@@ -147,20 +146,46 @@ while( $_ = readline $fh ){
 	my %details;
 	@details{ @lscpu_header } = split /,/, $_;
 
-	$socket_of{ $details{CPU} } = $details{Socket}+1; # +1: in mqtt it's cpu1 and cpu2, not cpu0 and cpu1
-	$led_of{ $details{CPU} } = $led_counter{ $details{Socket} }++;
+	$socket_of{ $details{CPU} } = $details{Socket}; # +1: in mqtt it's cpu1 and cpu2, not cpu0 and cpu1
+	$led_of_socket_of{$details{Socket}}{ $details{CPU} } = $led_counter{ $details{Socket} }++;
 }
 close $fh;
 
 debug {
 	print "Core->CPU:\n";
-	print "$_ => socket $socket_of{$_}, led $led_of{$_}\n" foreach nsort keys %socket_of;
-	sleep 5;
+	print "$_ => socket $socket_of{$_}\n" foreach nsort keys %socket_of;
+};
+
+my %led_of;
+my $led_counter = 0;
+foreach my $socket ( nsort keys %led_of_socket_of ){
+	if( $socket > 0  && $led_counter < 12 ){
+		# match this to the physical layout
+		$led_counter = 12;
+	}
+	foreach my $cpu (nsort keys %{$led_of_socket_of{$socket}}){
+		$led_of{ $cpu } = $led_counter++;
+	}
+}
+
+debug {
+	print "Core->LED\n";
+	print "$_ => $led_of{$_}\n" foreach nsort keys %led_of;
 };
 	
+debug {
+	sleep 5;
+};
 
 my $clearscreen = qx{ clear };
-my $mqtt = Net::MQTT::Simple->new("mqtt.ak-online.be");
+
+my $sock = new IO::Socket::INET(
+	PeerAddr => 'rgbcontroller_prototype.ak-online.be',
+	PeerPort => 21324,
+	Proto => 'udp',
+	Timeout => 1
+) or die('Error opening socket.');
+
 my %state_old = read_cpu_values();
 while(1){
 	sleep .2;
@@ -183,27 +208,26 @@ while(1){
 	};
 
 
+	my @sendqueue = ( "\x01", "\xFF" );
 	foreach my $cpu (nsort keys %colors){
-		my $socket = $socket_of{$cpu};
 		my $led = $led_of{$cpu};
 
-		my $topic = "esphome/rgbcontroller_prototype/light/cpu$socket/addrset";
+		my @items = (
+			chr($led),
+			map { chr $_ } @{ $colors{ $cpu } }
+		);
 
 		debug {
-			print "setting socket $socket led $led to ".(join ",", @{ $colors{$cpu} })."\n";
+			print "planning to set led $led to ".(join ",", @{ $colors{$cpu} })."[ ".join(" ", map{ sprintf "%02X", ord($_) } @items)." ]\n";
 		};
-
-		$mqtt->publish(
-			$topic => encode_json({
-				from => $led,
-				to => $led,
-				r => $colors{$cpu}[0],
-				g => $colors{$cpu}[1],
-				b => $colors{$cpu}[2],
-			})
-		);
+		
+		push @sendqueue, @items ;
 	}
 
+	debug{
+		print "sending to socket: ".join(" ", map{ sprintf "%02X", ord($_) } @sendqueue)."\n";
+	};
+	print $sock join '', @sendqueue;
 
 	%state_old = %state_new;
 }
