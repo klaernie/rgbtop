@@ -52,6 +52,8 @@ sub read_cpu_values {
 			\s+
 			(?<idle>\d+)
 			\s+
+			(?<iowait>\d+)
+			\s+
 			(?<irq>\d+)
 			\s+
 			(?<softirq>\d+)
@@ -67,7 +69,6 @@ sub read_cpu_values {
 
 		foreach(keys %+){
 			$cpu_stats{$cpu}{total} += $+{$_};
-			next if $_ eq "guest";
 			next if $_ eq "guest_nice";
 			next if $_ eq "steal";
 			next if $_ eq "irq";
