@@ -115,10 +115,13 @@ sub compute_current (\%\%){
 }
 
 my %state2color = (
-	idle   => [255,0,255],
-	nice   => [0,0,255],
-	system => [255,0,0],
-	user   => [0,255,0],
+	idle   => [110,   0, 110], # dim purple
+	nice   => [  0, 128, 255], # dark blue
+	system => [255,   0,   0], # bright red
+	user   => [  0, 255,   0], # bright green
+	#iowait => [163,  82, 204], # a little brighter purple
+	iowait => [193,  92,  23], # orange
+	guest  => [  0,   0, 255], # bright blue
 );
 sub colormap_cores (\%){
 	my %coredata = %{ shift() };
