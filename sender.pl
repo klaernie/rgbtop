@@ -34,7 +34,7 @@ sub read_cpu_values {
 	# cpu11 865807 252745 343045 43662490 63954 0 3341 0 0 0
 	# intr 815203445 15 0 0 0 2 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 2601
 	# ...
-	
+
 	# cpu line is:
 	# ID user nice system idle iowait softirq steal guest guest_nice
 	my %cpu_stats;
@@ -176,7 +176,7 @@ debug {
 	print "Core->LED\n";
 	print "$_ => $led_of{$_}\n" foreach nsort keys %led_of;
 };
-	
+
 debug {
 	sleep 5;
 };
@@ -197,7 +197,7 @@ while(1){
 	debug { print $clearscreen };
 
 	my %state_new = read_cpu_values();
-	
+
 	my %hogs = compute_current( %state_old, %state_new );
 
 	debug {
@@ -225,7 +225,7 @@ while(1){
 		debug {
 			print "planning to set led $led to ".(join ",", @{ $colors{$cpu} })."[ ".join(" ", map{ sprintf "%02X", ord($_) } @items)." ]\n";
 		};
-		
+
 		push @sendqueue, @items ;
 	}
 
