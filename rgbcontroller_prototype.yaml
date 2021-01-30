@@ -1,0 +1,79 @@
+esphome:
+  name: rgbcontroller_prototype
+  platform: ESP8266
+  board: nodemcuv2
+  #platformio_options:
+  #upload_speed: 115200
+
+  on_boot:
+    priority: -120
+    then:
+      - light.turn_on:
+          id: strip
+          brightness: 100%
+          red: 100%
+          green: 0%
+          blue: 100%
+          effect: "WLED"
+
+wifi:
+  ssid: !secret wifi-ssid
+  password: !secret wifi-pwd
+
+  use_address: rgbcontroller_prototype.ak-online.be
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "RGB Controller Fallback Hotspot"
+    password: "h4GKBUNL9pAE"
+
+captive_portal:
+
+# Enable logging
+logger:
+  #level: VERY_VERBOSE
+  #logs:
+  #  fastled: DEBUG
+  #  sensor: DEBUG
+
+# Enable Home Assistant API
+#api:
+
+mqtt:
+  broker: mqtt.ak-online.be
+  discovery: true
+  topic_prefix: esphome/rgbcontroller_prototype
+
+ota:
+
+wled:
+
+web_server:
+  port: 80
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal rgbcontroller_prototype"
+    update_interval: 60s
+
+output:
+  - platform: gpio
+    pin: GPIO04
+    id: out_led
+    inverted: true
+
+light:
+  - platform: binary
+    id: status
+    output: out_led
+
+  - platform: fastled_spi
+    id: strip
+    chipset: APA102
+    data_pin: D6
+    clock_pin: D5
+    num_leds: 30
+    rgb_order: BGR
+    effects:
+      - wled:
+      - !include ColorShimmerEffect.yaml
