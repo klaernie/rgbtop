@@ -106,7 +106,7 @@ sub compute_current (\%\%){
 		}
 
 		debug {
-			print "$cpu: $biggest_hog{$cpu}\n";
+			print "$cpu:";
 			print "\t$_ => $values{$_}" foreach sort keys %values;
 			print "\n";
 		};
