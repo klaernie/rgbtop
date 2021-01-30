@@ -184,9 +184,10 @@ debug {
 my $clearscreen = qx{ clear };
 
 my $sock = new IO::Socket::INET(
-	PeerAddr => 'rgbcontroller_prototype.ak-online.be',
+	PeerAddr => '172.16.3.255',
 	PeerPort => 21324,
 	Proto => 'udp',
+	Broadcast => 1,
 	Timeout => 1
 ) or die('Error opening socket.');
 
